@@ -1,0 +1,28 @@
+# 把受保护服务接入统一登录的可复用片段。
+# 用法：在站点块里 `import protected 127.0.0.1:<后端端口>`。
+# 未登录的请求会被网关拦到登录页；登录后会话 Cookie 设在父域，覆盖所有子域。
+
+(protected) {
+	# 登录/登出等页面（网关本身，免鉴权）
+	handle_path /_auth/* {
+		reverse_proxy 127.0.0.1:3001
+	}
+	# 其余请求先经网关鉴权，再回源到后端
+	handle {
+		forward_auth 127.0.0.1:3001 {
+			uri /verify
+			header_up X-Original-URI {uri}
+		}
+		reverse_proxy {args[0]}
+	}
+}
+
+# 示例：一个没有自带登录、交给统一网关保护的服务
+app.example.com {
+	import protected 127.0.0.1:8080
+}
+
+# 自带登录的服务不要 import protected，保持原样即可：
+# files.example.com {
+# 	reverse_proxy 127.0.0.1:5244
+# }

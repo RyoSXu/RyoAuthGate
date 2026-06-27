@@ -1,0 +1,18 @@
+[Unit]
+Description=auth-gate - unified forward-auth gate (SSO)
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/auth-gate.env
+ExecStart=/opt/auth-gate/bin/auth-gate
+Restart=always
+RestartSec=3
+User=root
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

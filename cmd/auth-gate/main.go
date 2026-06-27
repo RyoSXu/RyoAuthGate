@@ -23,10 +23,11 @@ import (
 var (
 	host         = env("GATE_HOST", "127.0.0.1")
 	port         = env("GATE_PORT", "3001")
-	cookieName   = env("GATE_COOKIE_NAME", "__Secure-ryoxu_session")
-	cookieDomain = env("GATE_COOKIE_DOMAIN", "ryoxu.me")
+	cookieName   = env("GATE_COOKIE_NAME", "__Secure-session")
+	cookieDomain = env("GATE_COOKIE_DOMAIN", "") // 设为父域可跨子域 SSO；留空则仅当前主机
 	loginPath    = env("GATE_LOGIN_PATH", "/_auth") // 各站点暴露的公共前缀
 	sessionTTL   = envInt("GATE_SESSION_TTL", 180*24*60*60)
+	title        = env("GATE_TITLE", "Login") // 登录页标题/品牌
 	passwordHash string
 	secret       []byte
 )
@@ -235,7 +236,7 @@ button{width:100%;height:46px;margin-top:12px;border:0;border-radius:11px;backgr
 color:#fff;font:inherit;font-weight:600;cursor:pointer;transition:background .15s}
 button:hover{background:#2f63e0}
 </style></head><body><main>
-<h1>ryoxu.me</h1><p class="sub">输入密码继续，设备会保持登录。</p>__ERROR__
+<h1>__TITLE__</h1><p class="sub">输入密码继续，设备会保持登录。</p>__ERROR__
 <form method="post" action="__ACTION__"><input type="hidden" name="next" value="__NEXT__">
 <input name="password" type="password" placeholder="密码" autocomplete="current-password" required autofocus>
 <button type="submit">登录</button></form></main></body></html>`
@@ -246,6 +247,7 @@ func renderLogin(w http.ResponseWriter, next, errMsg string, statusCode int) {
 		errHTML = `<p class="error">` + htmlEscape(errMsg) + `</p>`
 	}
 	page := loginTmpl
+	page = strings.ReplaceAll(page, "__TITLE__", htmlEscape(title))
 	page = strings.ReplaceAll(page, "__ERROR__", errHTML)
 	page = strings.ReplaceAll(page, "__ACTION__", htmlEscape(loginPath)+"/login")
 	page = strings.ReplaceAll(page, "__NEXT__", htmlEscape(safeNext(next)))
@@ -328,10 +330,12 @@ func genEnv(password string) {
 	rand.Read(sec)
 	fmt.Println("GATE_HOST=127.0.0.1")
 	fmt.Println("GATE_PORT=3001")
-	fmt.Println("GATE_COOKIE_NAME=__Secure-ryoxu_session")
-	fmt.Println("GATE_COOKIE_DOMAIN=ryoxu.me")
+	fmt.Println("GATE_COOKIE_NAME=__Secure-session")
+	fmt.Println("# 设为父域可实现跨子域 SSO（如 example.com）；留空则仅当前主机")
+	fmt.Println("GATE_COOKIE_DOMAIN=")
 	fmt.Println("GATE_LOGIN_PATH=/_auth")
 	fmt.Println("GATE_SESSION_TTL=15552000")
+	fmt.Println("GATE_TITLE=Login")
 	fmt.Printf("GATE_PASSWORD_HASH=pbkdf2_sha256$%d$%s$%s\n", iter, b64.EncodeToString(salt), b64.EncodeToString(dk))
 	fmt.Println("GATE_SECRET=" + b64.EncodeToString(sec))
 }

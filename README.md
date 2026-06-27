@@ -1,32 +1,96 @@
 # auth-gate
 
-轻量的统一 forward-auth 网关（密码登录，跨子域 SSO），配合 Caddy / Traefik 等反向代理使用。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-- 单个 Go 二进制，仅标准库，无第三方依赖（~6MB）。
-- 密码登录：PBKDF2-sha256 校验，HMAC 签名的会话 Cookie，失败限流。
-- 会话 Cookie 设在父域，**一次登录覆盖所有子域**的受保护服务。
-- 端点：`/verify`（forward-auth 判定，已登录 204 / 未登录 302 跳登录页）、`/login`、`/logout`、`/health`。
+A tiny unified **forward-auth** gate: password login with cross-subdomain SSO, designed to sit in front of self-hosted services that have no auth of their own. One login covers every protected subdomain.
 
-## 构建
+- Single Go binary, standard library only, no runtime dependencies.
+- Password login: PBKDF2-SHA256 verification, HMAC-signed session cookie, failed-attempt rate limiting.
+- Session cookie set on a parent domain, so **one login covers all subdomains**.
+- Works with Caddy `forward_auth` (or any proxy that supports an external auth subrequest).
+- Leave apps that already have their own login untouched — just don't put them behind the gate.
+
+## Footprint
+
+```text
+Binary size: about 6 MB
+Runtime memory: about 8 MB RSS (single process)
+Database: none
+Dependencies: none (standard library only)
+```
+
+## How It Works
+
+```text
+Browser --> Caddy --(forward_auth /verify)--> auth-gate
+                       |-- logged in  --> proxy to the backend service
+                       |-- logged out --> redirect to the gate login page, then back
+```
+
+Endpoints (served by the gate):
+
+- `/verify` — auth check for the proxy: `204` if logged in, `302` to the login page otherwise.
+- `/login` — login page (GET) and form submit (POST).
+- `/logout` — clears the session.
+- `/health` — liveness probe (`204`).
+
+## Project Layout
+
+```text
+cmd/auth-gate/main.go        The gate (single file, standard library only)
+systemd/auth-gate.service    systemd unit template
+caddy/Caddyfile.example      Reusable (protected) snippet + example sites
+scripts/install.sh           Build + install + enable
+scripts/update.sh            git pull + rebuild + restart
+.env.example                 Example environment variables
+```
+
+## Requirements
+
+- Linux with systemd
+- A reverse proxy with external-auth support (Caddy `forward_auth` recommended)
+- Go 1.22+ to build (locally, or with the Docker `golang:1-alpine` image)
+
+## Build
 
 ```bash
 CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/auth-gate ./cmd/auth-gate
-# 或用 Docker：
+# or, without a local Go toolchain:
 docker run --rm -v "$PWD":/src -w /src golang:1-alpine \
   sh -c "CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/auth-gate ./cmd/auth-gate"
 ```
 
-## 配置
-
-用内置命令生成环境变量文件（含密码哈希与随机 secret）：
+## Install
 
 ```bash
-bin/auth-gate genenv '你的密码' | sudo tee /etc/auth-gate.env
+sudo PROJECT_DIR=/opt/auth-gate bash scripts/install.sh
 ```
 
-主要变量：`GATE_PORT`、`GATE_COOKIE_NAME`、`GATE_COOKIE_DOMAIN`、`GATE_LOGIN_PATH`、`GATE_SESSION_TTL`、`GATE_PASSWORD_HASH`、`GATE_SECRET`。
+The installer builds the binary (if needed), installs the systemd unit, asks for a password, and writes `/etc/auth-gate.env`. Set `GATE_COOKIE_DOMAIN` to your parent domain for cross-subdomain SSO, and `GATE_TITLE` for branding.
 
-## Caddy 接入
+## Configuration
+
+Generate an env file with the built-in command (no extra tooling needed):
+
+```bash
+bin/auth-gate genenv 'your-password' | sudo tee /etc/auth-gate.env
+```
+
+| Variable | Default | Description |
+|---|---|---|
+| `GATE_HOST` | `127.0.0.1` | Listen address |
+| `GATE_PORT` | `3001` | Listen port |
+| `GATE_COOKIE_NAME` | `__Secure-session` | Session cookie name |
+| `GATE_COOKIE_DOMAIN` | _(empty)_ | Parent domain for cross-subdomain SSO; empty = current host only |
+| `GATE_LOGIN_PATH` | `/_auth` | Public path prefix each site exposes for the gate |
+| `GATE_SESSION_TTL` | `15552000` | Session lifetime in seconds (180 days) |
+| `GATE_TITLE` | `Login` | Login page title / brand |
+| `GATE_PASSWORD_HASH` | _(required)_ | `pbkdf2_sha256$iter$salt$hash` |
+| `GATE_SECRET` | _(required)_ | HMAC signing secret |
+
+## Caddy Integration
+
+Define the snippet once, then `import protected <backend>` on each site (see `caddy/Caddyfile.example`):
 
 ```caddyfile
 (protected) {
@@ -46,3 +110,14 @@ app.example.com {
     import protected 127.0.0.1:8080
 }
 ```
+
+## Security Notes
+
+- Keep `GATE_SECRET` private; keep `/etc/auth-gate.env` out of Git.
+- Protected backends must bind `127.0.0.1` only, so the gate cannot be bypassed.
+- The session cookie is `Secure; HttpOnly; SameSite=Lax` — serve everything over HTTPS.
+- Rotate the password by regenerating `/etc/auth-gate.env` (a new secret invalidates all sessions) and restarting the service.
+
+## License
+
+MIT
