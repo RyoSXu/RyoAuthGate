@@ -4,7 +4,7 @@
 
 - 单个 Go 二进制，仅标准库，无第三方依赖（~6MB）。
 - 密码登录：PBKDF2-sha256 校验，HMAC 签名的会话 Cookie，失败限流。
-- 会话 Cookie 设在父域（如 `ryoxu.me`），**一次登录覆盖所有子域**的受保护服务。
+- 会话 Cookie 设在父域，**一次登录覆盖所有子域**的受保护服务。
 - 端点：`/verify`（forward-auth 判定，已登录 204 / 未登录 302 跳登录页）、`/login`、`/logout`、`/health`。
 
 ## 构建
