@@ -220,14 +220,24 @@ func setSession(w http.ResponseWriter, value string, maxAge int) {
 const loginTmpl = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>登录</title><style>
-:root{color-scheme:light dark}*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui;background:#101114;color:#f4f4f5}
-main{width:min(90vw,360px);padding:32px;border:1px solid #333842;border-radius:20px;background:#191b20;box-shadow:0 18px 60px #0008}
-h1{margin:0 0 8px;font-size:26px}p{color:#aeb3bd;margin:0 0 24px}label{display:block;margin-bottom:8px}
-input,button{width:100%;height:48px;border-radius:12px;font:inherit}input{padding:0 14px;border:1px solid #444b57;background:#101216;color:#fff}
-button{margin-top:14px;border:0;background:#3874ff;color:white;font-weight:650}.error{color:#ff7b7b;margin:0 0 14px}
-</style></head><body><main><h1>ryoxu.me</h1><p>输入密码继续，设备会保持登录。</p>%s
-<form method="post" action="%s/login"><input type="hidden" name="next" value="%s">
-<label for="password">密码</label><input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+:root{color-scheme:dark}*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;
+background:radial-gradient(1100px 560px at 50% -12%,#1b2030,#0c0d11);color:#e8eaed}
+main{width:min(92vw,340px);padding:30px 28px;border:1px solid #2a2f3a;border-radius:18px;
+background:#15171d;box-shadow:0 20px 60px #0009}
+h1{margin:0 0 6px;font-size:24px;letter-spacing:.2px}
+.sub{margin:0 0 22px;color:#9aa0ab;font-size:14px}
+.error{margin:0 0 14px;color:#ff7b7b;font-size:13px}
+input{width:100%;height:46px;padding:0 14px;border:1px solid #353b47;border-radius:11px;
+background:#0e1014;color:#fff;font:inherit;outline:none;transition:border-color .15s,box-shadow .15s}
+input:focus{border-color:#3874ff;box-shadow:0 0 0 3px #3874ff33}
+button{width:100%;height:46px;margin-top:12px;border:0;border-radius:11px;background:#3874ff;
+color:#fff;font:inherit;font-weight:600;cursor:pointer;transition:background .15s}
+button:hover{background:#2f63e0}
+</style></head><body><main>
+<h1>ryoxu.me</h1><p class="sub">输入密码继续，设备会保持登录。</p>__ERROR__
+<form method="post" action="__ACTION__"><input type="hidden" name="next" value="__NEXT__">
+<input name="password" type="password" placeholder="密码" autocomplete="current-password" required autofocus>
 <button type="submit">登录</button></form></main></body></html>`
 
 func renderLogin(w http.ResponseWriter, next, errMsg string, statusCode int) {
@@ -235,7 +245,10 @@ func renderLogin(w http.ResponseWriter, next, errMsg string, statusCode int) {
 	if errMsg != "" {
 		errHTML = `<p class="error">` + htmlEscape(errMsg) + `</p>`
 	}
-	page := fmt.Sprintf(loginTmpl, errHTML, loginPath, htmlEscape(safeNext(next)))
+	page := loginTmpl
+	page = strings.ReplaceAll(page, "__ERROR__", errHTML)
+	page = strings.ReplaceAll(page, "__ACTION__", htmlEscape(loginPath)+"/login")
+	page = strings.ReplaceAll(page, "__NEXT__", htmlEscape(safeNext(next)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'")
 	commonHeaders(w)
