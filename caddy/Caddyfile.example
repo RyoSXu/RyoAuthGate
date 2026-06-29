@@ -17,9 +17,43 @@
 	}
 }
 
-# 示例：一个没有自带登录、交给统一网关保护的服务
+# 部分后端（如 PairDrop）不希望收到 forward_auth 带来的 Authorization 头
+(protected-drop) {
+	handle_path /_auth/* {
+		reverse_proxy 127.0.0.1:3001
+	}
+	handle {
+		forward_auth 127.0.0.1:3001 {
+			uri /verify
+			header_up X-Original-URI {uri}
+		}
+		reverse_proxy {args[0]} {
+			header_up -Authorization
+		}
+	}
+}
+
+# 示例：简单站点，全部走统一登录
 app.example.com {
 	import protected 127.0.0.1:8080
+}
+
+# 示例：PWA 图标 / manifest 需免登录，其余仍走统一登录
+tools.example.com {
+	@public_icons path /site.webmanifest /favicon.ico /favicon.svg /apple-touch-icon.png
+	handle @public_icons {
+		reverse_proxy 127.0.0.1:8092
+	}
+	import protected 127.0.0.1:8092
+}
+
+# 示例：图标免登录 + 后端需剥离 Authorization（PairDrop 等）
+drop.example.com {
+	@public_icons path /manifest.json /images/apple-touch-icon.png /images/favicon-96x96.png
+	handle @public_icons {
+		reverse_proxy 127.0.0.1:3000
+	}
+	import protected-drop 127.0.0.1:3000
 }
 
 # 自带登录的服务不要 import protected，保持原样即可：

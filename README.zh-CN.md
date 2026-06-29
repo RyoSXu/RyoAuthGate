@@ -117,6 +117,10 @@ app.example.com {
 }
 ```
 
+**PWA 图标免登录**：在 `import protected` 前加 `@public_icons` 块，让 `manifest` / `favicon` 等静态资源不经鉴权（完整示例见 `caddy/Caddyfile.example`）。
+
+**剥离 Authorization**：若后端对 `Authorization` 头敏感（如 PairDrop），用 `(protected-drop)` 片段，行为同 `(protected)` 但回源时去掉该头。
+
 ## 更新
 
 ```bash

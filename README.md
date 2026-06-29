@@ -117,6 +117,10 @@ app.example.com {
 }
 ```
 
+**Public icons without login**: add an `@public_icons` handler before `import protected` so `manifest` / `favicon` assets skip auth (full examples in `caddy/Caddyfile.example`).
+
+**Strip Authorization**: if the backend is sensitive to the `Authorization` header (e.g. PairDrop), use the `(protected-drop)` snippet—it matches `(protected)` but removes that header on the upstream request.
+
 ## Update
 
 ```bash
