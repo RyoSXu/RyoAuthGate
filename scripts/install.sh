@@ -12,15 +12,11 @@ fi
 
 cd "$PROJECT_DIR"
 
-# 构建二进制（需本机 Go，或预先用 Docker 构建好 bin/auth-gate）
 if [ ! -x "$BIN" ]; then
-  if command -v go >/dev/null 2>&1; then
-    echo "Building auth-gate ..."
-    CGO_ENABLED=0 go build -ldflags='-s -w' -o "$BIN" ./cmd/auth-gate
+  if command -v go >/dev/null 2>&1 || command -v docker >/dev/null 2>&1; then
+    bash "$PROJECT_DIR/scripts/build.sh"
   else
-    echo "未找到 $BIN，且本机无 go。请先构建，例如：" >&2
-    echo "  docker run --rm -v \"$PROJECT_DIR\":/src -w /src golang:1-alpine \\" >&2
-    echo "    sh -c \"CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/auth-gate ./cmd/auth-gate\"" >&2
+    echo "未找到 $BIN，且本机无 go/docker。请先运行 scripts/build.sh。" >&2
     exit 1
   fi
 fi

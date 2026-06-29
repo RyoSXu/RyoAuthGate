@@ -32,16 +32,17 @@
 - `/verify` —— 给反代的鉴权判定：已登录 `204`，未登录 `302` 跳登录页。
 - `/login` —— 登录页（GET）与表单提交（POST）。
 - `/logout` —— 清除会话。
-- `/health` —— 存活探针（`204`）。
+- `/health` 或 `/healthz` —— 存活探针（`204`）。
 
 ## 目录结构
 
 ```text
 cmd/auth-gate/main.go        网关本体（单文件，纯标准库）
+scripts/build.sh             统一构建（本机 Go 或 Docker）
+scripts/install.sh           安装 + 启用
+scripts/update.sh            拉取、构建、重启
 systemd/auth-gate.service    systemd 服务模板
 caddy/Caddyfile.example      可复用的 (protected) 片段 + 示例站点
-scripts/install.sh           构建 + 安装 + 启用
-scripts/update.sh            git pull + 重新构建 + 重启
 .env.example                 环境变量示例
 ```
 
@@ -54,19 +55,24 @@ scripts/update.sh            git pull + 重新构建 + 重启
 ## 构建
 
 ```bash
+bash scripts/build.sh
+```
+
+手动构建：
+
+```bash
 CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/auth-gate ./cmd/auth-gate
-# 或者无需本机 Go：
-docker run --rm -v "$PWD":/src -w /src golang:1-alpine \
-  sh -c "CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/auth-gate ./cmd/auth-gate"
 ```
 
 ## 安装
 
 ```bash
-sudo PROJECT_DIR=/opt/auth-gate bash scripts/install.sh
+git clone https://github.com/RyoSXu/RyoAuthGate.git /opt/auth-gate
+cd /opt/auth-gate
+sudo bash scripts/install.sh
 ```
 
-安装脚本会（按需）构建二进制、安装 systemd 单元、询问密码并写入 `/etc/auth-gate.env`。跨子域 SSO 请把 `GATE_COOKIE_DOMAIN` 设为你的父域，`GATE_TITLE` 用于登录页品牌。
+安装脚本会（按需）构建二进制、安装 systemd 单元、询问密码并写入 `/etc/auth-gate.env`（建议 `chmod 600`）。跨子域 SSO 请把 `GATE_COOKIE_DOMAIN` 设为你的父域；`GATE_TITLE` 用于浏览器标签页标题与登录页品牌。
 
 ## 配置
 
@@ -84,7 +90,7 @@ bin/auth-gate genenv '你的密码' | sudo tee /etc/auth-gate.env
 | `GATE_COOKIE_DOMAIN` | _(空)_ | 跨子域 SSO 的父域；留空则仅当前主机 |
 | `GATE_LOGIN_PATH` | `/_auth` | 各站点暴露给网关的公共路径前缀 |
 | `GATE_SESSION_TTL` | `15552000` | 会话有效期（秒，默认 180 天） |
-| `GATE_TITLE` | `Login` | 登录页标题 / 品牌 |
+| `GATE_TITLE` | `Login` | 浏览器标签页标题与登录页品牌 |
 | `GATE_PASSWORD_HASH` | _(必填)_ | `pbkdf2_sha256$迭代$盐$哈希` |
 | `GATE_SECRET` | _(必填)_ | HMAC 签名密钥 |
 
@@ -110,6 +116,15 @@ app.example.com {
     import protected 127.0.0.1:8080
 }
 ```
+
+## 更新
+
+```bash
+cd /opt/auth-gate
+bash scripts/update.sh
+```
+
+脚本会 `git pull --ff-only`、调用 `scripts/build.sh` 重建、重启服务并检查 `/health`。
 
 ## 安全建议
 

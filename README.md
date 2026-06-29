@@ -32,16 +32,17 @@ Endpoints (served by the gate):
 - `/verify` — auth check for the proxy: `204` if logged in, `302` to the login page otherwise.
 - `/login` — login page (GET) and form submit (POST).
 - `/logout` — clears the session.
-- `/health` — liveness probe (`204`).
+- `/health` or `/healthz` — liveness probe (`204`).
 
 ## Project Layout
 
 ```text
 cmd/auth-gate/main.go        The gate (single file, standard library only)
+scripts/build.sh             Unified build (local Go or Docker)
+scripts/install.sh           Install + enable
+scripts/update.sh            Pull, rebuild, restart
 systemd/auth-gate.service    systemd unit template
 caddy/Caddyfile.example      Reusable (protected) snippet + example sites
-scripts/install.sh           Build + install + enable
-scripts/update.sh            git pull + rebuild + restart
 .env.example                 Example environment variables
 ```
 
@@ -54,19 +55,24 @@ scripts/update.sh            git pull + rebuild + restart
 ## Build
 
 ```bash
+bash scripts/build.sh
+```
+
+Manual build:
+
+```bash
 CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/auth-gate ./cmd/auth-gate
-# or, without a local Go toolchain:
-docker run --rm -v "$PWD":/src -w /src golang:1-alpine \
-  sh -c "CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/auth-gate ./cmd/auth-gate"
 ```
 
 ## Install
 
 ```bash
-sudo PROJECT_DIR=/opt/auth-gate bash scripts/install.sh
+git clone https://github.com/RyoSXu/RyoAuthGate.git /opt/auth-gate
+cd /opt/auth-gate
+sudo bash scripts/install.sh
 ```
 
-The installer builds the binary (if needed), installs the systemd unit, asks for a password, and writes `/etc/auth-gate.env`. Set `GATE_COOKIE_DOMAIN` to your parent domain for cross-subdomain SSO, and `GATE_TITLE` for branding.
+The installer builds the binary (if needed), installs the systemd unit, asks for a password, and writes `/etc/auth-gate.env` (use `chmod 600`). Set `GATE_COOKIE_DOMAIN` to your parent domain for cross-subdomain SSO; `GATE_TITLE` sets the browser tab title and login page heading.
 
 ## Configuration
 
@@ -84,7 +90,7 @@ bin/auth-gate genenv 'your-password' | sudo tee /etc/auth-gate.env
 | `GATE_COOKIE_DOMAIN` | _(empty)_ | Parent domain for cross-subdomain SSO; empty = current host only |
 | `GATE_LOGIN_PATH` | `/_auth` | Public path prefix each site exposes for the gate |
 | `GATE_SESSION_TTL` | `15552000` | Session lifetime in seconds (180 days) |
-| `GATE_TITLE` | `Login` | Login page title / brand |
+| `GATE_TITLE` | `Login` | Browser tab title and login page heading |
 | `GATE_PASSWORD_HASH` | _(required)_ | `pbkdf2_sha256$iter$salt$hash` |
 | `GATE_SECRET` | _(required)_ | HMAC signing secret |
 
@@ -110,6 +116,15 @@ app.example.com {
     import protected 127.0.0.1:8080
 }
 ```
+
+## Update
+
+```bash
+cd /opt/auth-gate
+bash scripts/update.sh
+```
+
+The script runs `git pull --ff-only`, calls `scripts/build.sh`, restarts the service, and checks `/health`.
 
 ## Security Notes
 

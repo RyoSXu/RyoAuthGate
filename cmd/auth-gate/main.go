@@ -167,20 +167,29 @@ func rateLimited(key string) bool {
 	cutoff := time.Now().Add(-failWindow)
 	failMu.Lock()
 	defer failMu.Unlock()
+	return len(trimFailuresLocked(key, cutoff)) >= failLimit
+}
+
+func recordFailure(key string) {
+	cutoff := time.Now().Add(-failWindow)
+	failMu.Lock()
+	defer failMu.Unlock()
+	failures[key] = append(trimFailuresLocked(key, cutoff), time.Now())
+}
+
+func trimFailuresLocked(key string, cutoff time.Time) []time.Time {
 	var recent []time.Time
 	for _, t := range failures[key] {
 		if t.After(cutoff) {
 			recent = append(recent, t)
 		}
 	}
-	failures[key] = recent
-	return len(recent) >= failLimit
-}
-
-func recordFailure(key string) {
-	failMu.Lock()
-	failures[key] = append(failures[key], time.Now())
-	failMu.Unlock()
+	if len(recent) == 0 {
+		delete(failures, key)
+	} else {
+		failures[key] = recent
+	}
+	return recent
 }
 
 func clearFailures(key string) {
@@ -220,7 +229,7 @@ func setSession(w http.ResponseWriter, value string, maxAge int) {
 
 const loginTmpl = `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>登录</title><style>
+<title>__TITLE__</title><style>
 :root{color-scheme:dark}*{box-sizing:border-box}
 body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;
 background:radial-gradient(1100px 560px at 50% -12%,#1b2030,#0c0d11);color:#e8eaed}
@@ -262,7 +271,7 @@ func renderLogin(w http.ResponseWriter, next, errMsg string, statusCode int) {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
-	case "/health":
+	case "/health", "/healthz":
 		w.WriteHeader(http.StatusNoContent)
 	case "/verify":
 		if authed(r) {

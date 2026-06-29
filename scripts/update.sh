@@ -10,12 +10,7 @@ if command -v git >/dev/null 2>&1 && [ -d .git ]; then
   git pull --ff-only
 fi
 
-if command -v go >/dev/null 2>&1; then
-  CGO_ENABLED=0 go build -ldflags='-s -w' -o "$BIN" ./cmd/auth-gate
-else
-  docker run --rm -v "$PROJECT_DIR":/src -w /src golang:1-alpine \
-    sh -c "CGO_ENABLED=0 go build -ldflags='-s -w' -o bin/auth-gate ./cmd/auth-gate"
-fi
+bash "$PROJECT_DIR/scripts/build.sh"
 
 install -m 0644 systemd/auth-gate.service /etc/systemd/system/auth-gate.service
 systemctl daemon-reload
